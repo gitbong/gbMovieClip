@@ -9,9 +9,7 @@ class Timeline
 	_currframe: 1
 	_targetframe: 1
 	_timer: -1
-
 	_playType: 1
-
 	_evtMap: {}
 
 	loop: false
@@ -21,7 +19,6 @@ class Timeline
 		@_framerate = 1000 / framerate
 
 		@_evtMap = {}
-
 
 		@__defineGetter__('totalFrame', ->return @_totalFrame)
 		@__defineSetter__('totalFrame', -> throw "totalFrame read only")
@@ -44,7 +41,6 @@ class Timeline
 
 	nextFrame: ->
 		@_currframe++
-		#		console.log @_currframe
 		if @_currframe is @_totalFrame + 1 and @loop is true
 			console.log 1
 			@_currframe = 1
@@ -106,7 +102,6 @@ class Timeline
 		return frame
 
 	_render: (frame) ->
-#		console.log 'frame:', frame, @totalFrame
 		if @loop
 			if(frame is @_totalFrame and @_playType is 1)
 				@_currframe = 0
