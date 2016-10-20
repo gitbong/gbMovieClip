@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <title>gbMovieClip</title>
     <script src="gbMovieClip.js"></script>
+    <style>
+        body {
+            background: #555;
+        }
+    </style>
 </head>
 <body>
 <span id="stage">
@@ -11,27 +16,32 @@
 </span>
 </body>
 <script>
-    //    var mc = new gbTimeline(5, 10);
+    //    var mc = new gbTimeline(5, 10):
 
-    var libs = []
+    var libs = [];
     for (var i = 1; i <= 64; i++) {
         libs.push('img/img' + i + '.jpg')
     }
 
     //    var mc = new gbTimeline(5, 10)
-    //    mc.loop = false;
     //    mc.play();
 
-    var mc = new gbMovieClip(libs, 320, 504, 13, function () {
-        mc.play()
+    var mc = new gbMovieClip(libs, 320, 504, 20, function () {
+//        mc.play();
     });
+
     mc.on('playing', function (a) {
+        console.log(a.currFrame, a.totalFrame);
         if (a.currFrame == mc.totalFrame) {
             mc.playTo(50);
         }
         if (a.currFrame == 50) {
             mc.playTo(mc.totalFrame);
         }
+    });
+
+    mc.on('complete', function (a) {
+//        console.log(a)
     });
     document.getElementById("stage").appendChild(mc.dom);
 </script>

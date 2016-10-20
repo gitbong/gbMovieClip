@@ -6,9 +6,19 @@
  */
 
 (function() {
-  var MovieClip, Timeline,
+  var FrameVideo, MovieClip, Timeline, _getTimeSpace, _resetTimeStemp, _startTimeStemp,
     extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
+
+  _startTimeStemp = 0;
+
+  _resetTimeStemp = function() {
+    return _startTimeStemp = Date.now();
+  };
+
+  _getTimeSpace = function() {
+    return Date.now() - _startTimeStemp;
+  };
 
   Timeline = (function() {
     Timeline.prototype._totalFrame = 0;
@@ -23,16 +33,18 @@
 
     Timeline.prototype._playType = 1;
 
+    Timeline.prototype._diraction = 1;
+
     Timeline.prototype._evtMap = {};
 
     Timeline.prototype.loop = false;
 
-    function Timeline(totalFrame, framerate) {
-      if (framerate == null) {
-        framerate = 30;
+    function Timeline(totalFrame, fps) {
+      if (fps == null) {
+        fps = 30;
       }
       this._totalFrame = totalFrame;
-      this._framerate = 1000 / framerate;
+      this._framerate = 1000 / fps;
       this._evtMap = {};
       this.__defineGetter__('totalFrame', function() {
         return this._totalFrame;
@@ -46,8 +58,12 @@
       this.__defineSetter__('currentFrame', function() {
         throw "currentFrame read only";
       });
-      this._render(1);
+      this._render(1, false);
     }
+
+    Timeline.prototype.setFramerate = function(fps) {
+      return this._framerate = 1000 / fps;
+    };
 
     Timeline.prototype.on = function(evt, fn) {
       if (this._evtMap[evt] === void 0) {
@@ -56,20 +72,34 @@
       return this._evtMap[evt].push(fn);
     };
 
-    Timeline.prototype._trigger = function(evt) {
-      var arr, i, j, len, results;
+    Timeline.prototype._trigger = function(evt, timeout) {
+      var arr, fn, i, len, results;
+      if (timeout == null) {
+        timeout = false;
+      }
       arr = this._evtMap[evt];
       if (arr === void 0) {
         arr = [];
       }
       results = [];
-      for (j = 0, len = arr.length; j < len; j++) {
-        i = arr[j];
-        if (typeof i === "function") {
-          results.push(i({
-            currFrame: this.currentFrame,
-            totalFrame: this.totalFrame
-          }));
+      for (i = 0, len = arr.length; i < len; i++) {
+        fn = arr[i];
+        if (typeof fn === "function") {
+          if (timeout === false) {
+            results.push(fn({
+              event: evt,
+              currFrame: this.currentFrame,
+              totalFrame: this.totalFrame
+            }));
+          } else {
+            results.push(setTimeout(function() {
+              return fn({
+                event: evt,
+                currFrame: this.currentFrame,
+                totalFrame: this.totalFrame
+              });
+            }, 0));
+          }
         } else {
           results.push(void 0);
         }
@@ -78,44 +108,55 @@
     };
 
     Timeline.prototype.nextFrame = function() {
-      this._currframe++;
+      this._diraction = 1;
+      this._currframe += 1;
       if (this._currframe === this._totalFrame + 1 && this.loop === true) {
-        console.log(1);
         this._currframe = 1;
       } else {
         this._currframe = this._frame(this._currframe);
       }
-      this._trigger('playing');
       return this._render(this._currframe);
     };
 
     Timeline.prototype.prevFrame = function() {
-      this._currframe--;
+      this._diraction = 2;
+      this._currframe -= 1;
       this._currframe = this._frame(this._currframe);
-      this._trigger('playing');
       return this._render(this._currframe);
     };
 
-    Timeline.prototype.play = function() {
+    Timeline.prototype.play = function(_auto) {
       var _this;
+      if (_auto == null) {
+        _auto = false;
+      }
       _this = this;
       this._playType = 1;
       this.stop();
       this._targetframe = this._totalFrame;
-      return this._timer = setTimeout(function() {
-        _this.play();
+      if (_auto === false) {
+        _resetTimeStemp();
+      }
+      this._timer = setTimeout(function() {
+        _this.play(true);
         return _this.nextFrame();
       }, this._framerate);
     };
 
-    Timeline.prototype.playTo = function(frame) {
+    Timeline.prototype.playTo = function(frame, _auto) {
       var _this;
+      if (_auto == null) {
+        _auto = false;
+      }
       _this = this;
       this._playType = 2;
       this.stop();
       this._targetframe = this._frame(frame);
+      if (_auto === false) {
+        _resetTimeStemp();
+      }
       return this._timer = setTimeout(function() {
-        _this.playTo(frame);
+        _this.playTo(frame, true);
         if (_this._targetframe < _this._currframe) {
           return _this.prevFrame();
         } else if (_this._targetframe > _this._currframe) {
@@ -129,6 +170,7 @@
     };
 
     Timeline.prototype.gotoAndPlay = function(frame) {
+      this._playType = 1;
       this._currframe = this._frame(frame);
       this._render(this._currframe);
       this.stop();
@@ -151,13 +193,27 @@
       return frame;
     };
 
-    Timeline.prototype._render = function(frame) {
+    Timeline.prototype._render = function(frame, trigger) {
+      var _this;
+      if (trigger == null) {
+        trigger = true;
+      }
+      _this = this;
+      if (trigger) {
+        if (frame === this._targetframe) {
+          _this._trigger('complete', true);
+        }
+        this._trigger('playing');
+      }
       if (this.loop) {
         if (frame === this._totalFrame && this._playType === 1) {
           return this._currframe = 0;
         }
       } else {
         if (frame === this._targetframe) {
+          if (trigger) {
+            this._trigger('complete');
+          }
           return this.stop();
         }
       }
@@ -176,15 +232,15 @@
 
     MovieClip.prototype._imgs = [];
 
-    function MovieClip(libs1, width, height, framerate, initedFn) {
+    function MovieClip(libs1, width, height, fps, initedFn) {
       this.libs = libs1;
       this.width = width;
       this.height = height;
-      if (framerate == null) {
-        framerate = 30;
+      if (fps == null) {
+        fps = 30;
       }
       this.initedFn = initedFn;
-      MovieClip.__super__.constructor.call(this, libs.length, framerate);
+      MovieClip.__super__.constructor.call(this, libs.length, fps);
       this._dom = document.createElement('canvas');
       this._dom['width'] = this.width;
       this._dom['height'] = this.height;
@@ -200,7 +256,7 @@
       _this = this;
       id = this._imgs.length;
       if (id === this.libs.length) {
-        this._render(1);
+        this._render(1, false);
         if (typeof this.initedFn === "function") {
           return this.initedFn();
         }
@@ -223,20 +279,74 @@
       return img.src = url;
     };
 
-    MovieClip.prototype._render = function(frame) {
+    MovieClip.prototype._render = function(frame, trigger) {
+      if (trigger == null) {
+        trigger = true;
+      }
       if (this._ctx.drawImage) {
         this._ctx.drawImage(this._imgs[frame - 1], 0, 0, this.width, this.height);
       }
-      return MovieClip.__super__._render.call(this, frame);
+      return MovieClip.__super__._render.call(this, frame, trigger);
     };
 
     return MovieClip;
 
   })(Timeline);
 
+  FrameVideo = (function() {
+    FrameVideo.prototype.fps = 0;
+
+    FrameVideo.prototype.loop = false;
+
+    FrameVideo.prototype.bufferFrame = 30;
+
+    FrameVideo.prototype._timeStemp = 0;
+
+    FrameVideo.prototype._currframe = 1;
+
+    FrameVideo.prototype._totalFrame = 0;
+
+    function FrameVideo(libs1, width, height, fps, initedFn) {
+      this.libs = libs1;
+      this.width = width;
+      this.height = height;
+      if (fps == null) {
+        fps = 30;
+      }
+      this.initedFn = initedFn;
+      this.fps = 1000 / fps;
+      this._totalFrame = this.libs.length;
+      this.__defineGetter__('totalFrame', function() {
+        return this._totalFrame;
+      });
+      this.__defineSetter__('totalFrame', function() {
+        throw "totalFrame read only";
+      });
+      this.__defineGetter__('currentFrame', function() {
+        return this._currframe;
+      });
+      this.__defineSetter__('currentFrame', function() {
+        throw "currentFrame read only";
+      });
+    }
+
+    FrameVideo.prototype.play = function() {};
+
+    FrameVideo.prototype.pause = function() {};
+
+    FrameVideo.prototype.stop = function() {};
+
+    FrameVideo.prototype.seek = function(frame) {};
+
+    return FrameVideo;
+
+  })();
+
   window.gbTimeline = Timeline;
 
   window.gbMovieClip = MovieClip;
+
+  window.gbFrameVideo = FrameVideo;
 
 }).call(this);
 
